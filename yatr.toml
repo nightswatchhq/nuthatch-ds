@@ -1,0 +1,46 @@
+# Task runner config (yatr). Adjust as needed.
+
+[tasks.fmt]
+desc = "Format Rust code"
+run = ["cargo fmt"]
+
+[tasks.fmt-check]
+desc = "Check Rust formatting"
+sources = ["**/*.rs"]
+run = ["cargo fmt --all --check"]
+
+[tasks.clippy]
+desc = "Lint Rust"
+sources = ["**/*.rs", "**/Cargo.toml"]
+run = ["cargo clippy --all-targets -- -D warnings"]
+
+[tasks.test]
+desc = "Run Rust tests"
+run = ["cargo test"]
+
+[tasks.build]
+desc = "Release build"
+sources = ["**/*.rs", "**/Cargo.toml"]
+run = ["cargo build --release"]
+
+[tasks.contracts]
+desc = "Build + test the Solidity contracts"
+run = ["forge build", "forge test"]
+
+[tasks.ci]
+desc = "CI pipeline"
+depends = ["fmt-check", "clippy", "test", "contracts"]
+
+[tasks.up]
+desc = "Start services (Postgres + gateway)"
+foreground = true
+run = ["docker compose up"]
+
+[tasks.down]
+desc = "Stop services"
+run = ["docker compose down"]
+
+[tasks.logs]
+desc = "Tail logs"
+foreground = true
+run = ["docker compose logs -f"]

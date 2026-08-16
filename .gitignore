@@ -1,0 +1,15 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Foundry
+/out
+/cache
+/broadcast
+
+# Env / secrets
+.env
+gateway.toml
+
+# OS
+.DS_Store

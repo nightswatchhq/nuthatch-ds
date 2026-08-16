@@ -1,0 +1,45 @@
+# Nuthatch Data Service gateway configuration.
+# Copy to gateway.toml and fill in real values. Load path via $GATEWAY_CONFIG.
+
+[server]
+host = "0.0.0.0"
+port = 8090
+
+[indexer]
+# This provider's on-chain address (the registered service provider).
+service_provider_address = "0x0000000000000000000000000000000000000000"
+# Hex 32-byte operator key used to sign collect() transactions. Keep secret.
+operator_private_key = "0x0000000000000000000000000000000000000000000000000000000000000000"
+
+[tap]
+# NuthatchDataService proxy address (set after deployment).
+data_service_address = "0x0000000000000000000000000000000000000000"
+# Consumer addresses authorised to issue TAP receipts. Empty = accept any valid signer.
+authorized_senders = []
+# GraphTallyCollector domain — defaults for arbitrum_sepolia.
+eip712_domain_name = "GraphTallyCollector"
+eip712_chain_id = 421614
+eip712_verifying_contract = "0xacC71844EF6beEF70106ABe6E51013189A1f3738"
+# Reject receipts older than this (ns). Default 30s.
+max_receipt_age_ns = 30000000000
+# TAP aggregator base URL (its /rav/aggregate endpoint). Omit to disable aggregation.
+# aggregator_url = "http://localhost:7610"
+aggregation_interval_secs = 60
+
+[backend]
+# The private Nuthatch runtime. The public gateway exposes only its NID-addressed
+# schema, named-query, table, and optional SQL routes.
+upstream_url = "http://127.0.0.1:8288"
+
+[database]
+url = "postgres://nuthatch:nuthatch@localhost:5432/nuthatch_gateway"
+
+# On-chain RAV collection (omit the whole section to disable).
+[collector]
+arbitrum_rpc_url = "https://sepolia-rollup.arbitrum.io/rpc"
+collect_interval_secs = 3600
+min_collect_value = "0"
+
+[rate_limit]
+requests_per_second = 20
+burst_size = 40

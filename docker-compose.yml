@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER:     nuthatch
+      POSTGRES_PASSWORD: nuthatch
+      POSTGRES_DB:       nuthatch_gateway
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nuthatch"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  nuthatch-gateway:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      GATEWAY_CONFIG: /app/config.toml
+      RUST_LOG:       nuthatch_gateway=info,horizon_core=info
+    volumes:
+      - ./gateway.toml:/app/config.toml:ro
+    ports:
+      - "8090:8090"
+
+volumes:
+  pgdata:
