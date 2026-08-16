@@ -17,21 +17,36 @@ contract MockStaking {
 
     function setProvision(address sp, address ds, uint256 tokens, uint64 thawingPeriod) external {
         provisions[sp][ds] = IHorizonStakingTypes.Provision({
-            tokens: tokens, tokensThawing: 0, sharesThawing: 0,
-            maxVerifierCut: 1_000_000, thawingPeriod: thawingPeriod,
-            createdAt: uint64(block.timestamp), maxVerifierCutPending: 0,
-            thawingPeriodPending: 0, lastParametersStagedAt: 0, thawingNonce: 0
+            tokens: tokens,
+            tokensThawing: 0,
+            sharesThawing: 0,
+            maxVerifierCut: 1_000_000,
+            thawingPeriod: thawingPeriod,
+            createdAt: uint64(block.timestamp),
+            maxVerifierCutPending: 0,
+            thawingPeriodPending: 0,
+            lastParametersStagedAt: 0,
+            thawingNonce: 0
         });
     }
+
     function getProvision(address sp, address ds) external view returns (IHorizonStakingTypes.Provision memory) {
         return provisions[sp][ds];
     }
-    function isAuthorized(address sp, address, address op) external pure returns (bool) { return sp == op; }
+
+    function isAuthorized(address sp, address, address op) external pure returns (bool) {
+        return sp == op;
+    }
+
     function getTokensAvailable(address sp, address ds, uint32) external view returns (uint256) {
         return provisions[sp][ds].tokens;
     }
+
     function getDelegationPool(address, address) external pure returns (IHorizonStakingTypes.DelegationPool memory) {
-        return IHorizonStakingTypes.DelegationPool({tokens:0, shares:0, tokensThawing:0, sharesThawing:0, thawingNonce:0});
+        return
+            IHorizonStakingTypes.DelegationPool({
+                tokens: 0, shares: 0, tokensThawing: 0, sharesThawing: 0, thawingNonce: 0
+            });
     }
     function slash(address, uint256, uint256, address) external {}
     function acceptProvisionParameters(address) external {}
@@ -41,28 +56,27 @@ contract NuthatchDataServiceTest is Test {
     NuthatchDataService internal service;
     MockStaking internal staking;
 
-    address internal owner    = address(this);
+    address internal owner = address(this);
     address internal provider = address(0xBEEF);
 
     function setUp() public {
-        MockGRTToken   grt        = new MockGRTToken();
+        MockGRTToken grt = new MockGRTToken();
         ControllerMock controller = new ControllerMock(address(this));
         staking = new MockStaking();
 
-        controller.setContractProxy(keccak256("GraphToken"),        address(grt));
-        controller.setContractProxy(keccak256("Staking"),           address(staking));
-        controller.setContractProxy(keccak256("EpochManager"),      address(1));
-        controller.setContractProxy(keccak256("RewardsManager"),    address(1));
+        controller.setContractProxy(keccak256("GraphToken"), address(grt));
+        controller.setContractProxy(keccak256("Staking"), address(staking));
+        controller.setContractProxy(keccak256("EpochManager"), address(1));
+        controller.setContractProxy(keccak256("RewardsManager"), address(1));
         controller.setContractProxy(keccak256("GraphTokenGateway"), address(1));
-        controller.setContractProxy(keccak256("GraphProxyAdmin"),   address(1));
-        controller.setContractProxy(keccak256("Curation"),          address(1));
-        controller.setContractProxy(keccak256("GraphPayments"),     address(1));
-        controller.setContractProxy(keccak256("PaymentsEscrow"),    address(1));
+        controller.setContractProxy(keccak256("GraphProxyAdmin"), address(1));
+        controller.setContractProxy(keccak256("Curation"), address(1));
+        controller.setContractProxy(keccak256("GraphPayments"), address(1));
+        controller.setContractProxy(keccak256("PaymentsEscrow"), address(1));
 
         // GraphTallyCollector immutable is only used by collect(); a stub is fine here.
         NuthatchDataService impl = new NuthatchDataService(address(controller), address(1));
-        bytes memory initData =
-            abi.encodeCall(NuthatchDataService.initialize, (owner, owner));
+        bytes memory initData = abi.encodeCall(NuthatchDataService.initialize, (owner, owner));
         service = NuthatchDataService(address(new ERC1967Proxy(address(impl), initData)));
 
         // Provider provisions well above MIN_PROVISION, with a valid thawing period.
@@ -88,9 +102,7 @@ contract NuthatchDataServiceTest is Test {
     function test_register_revertsOnDuplicate() public {
         vm.startPrank(provider);
         service.register(provider, abi.encode("https://p", "geo", address(0)));
-        vm.expectRevert(
-            abi.encodeWithSelector(INuthatchDataService.ProviderAlreadyRegistered.selector, provider)
-        );
+        vm.expectRevert(abi.encodeWithSelector(INuthatchDataService.ProviderAlreadyRegistered.selector, provider));
         service.register(provider, abi.encode("https://p", "geo", address(0)));
         vm.stopPrank();
     }
@@ -100,13 +112,10 @@ contract NuthatchDataServiceTest is Test {
         service.register(provider, abi.encode("https://p", "geo", address(0)));
         bytes32 nid = keccak256("horizon-nest");
 
-        service.startService(
-            provider, abi.encode(nid, INuthatchDataService.QueryMode.NAMED, "https://p/named")
-        );
+        service.startService(provider, abi.encode(nid, INuthatchDataService.QueryMode.NAMED, "https://p/named"));
         assertEq(service.activeServiceCount(provider), 1);
 
-        INuthatchDataService.NestOffering[] memory regs =
-            service.getServiceRegistrations(provider);
+        INuthatchDataService.NestOffering[] memory regs = service.getServiceRegistrations(provider);
         assertEq(regs.length, 1);
         assertEq(regs[0].nid, nid);
         assertTrue(regs[0].active);
@@ -123,8 +132,10 @@ contract NuthatchDataServiceTest is Test {
         service.startService(provider, abi.encode(nid, INuthatchDataService.QueryMode.NAMED, "https://p"));
         service.startService(provider, abi.encode(nid, INuthatchDataService.QueryMode.SQL, "https://p"));
         assertEq(service.activeServiceCount(provider), 2);
-        assertTrue(service.offeringKey(nid, INuthatchDataService.QueryMode.NAMED) !=
-            service.offeringKey(nid, INuthatchDataService.QueryMode.SQL));
+        assertTrue(
+            service.offeringKey(nid, INuthatchDataService.QueryMode.NAMED)
+                != service.offeringKey(nid, INuthatchDataService.QueryMode.SQL)
+        );
         vm.stopPrank();
     }
 
@@ -134,9 +145,7 @@ contract NuthatchDataServiceTest is Test {
         service.startService(
             provider, abi.encode(keccak256("horizon-nest"), INuthatchDataService.QueryMode.NAMED, "https://p")
         );
-        vm.expectRevert(
-            abi.encodeWithSelector(INuthatchDataService.ActiveServicesExist.selector, provider)
-        );
+        vm.expectRevert(abi.encodeWithSelector(INuthatchDataService.ActiveServicesExist.selector, provider));
         service.deregister(provider, "");
         vm.stopPrank();
     }
@@ -148,9 +157,7 @@ contract NuthatchDataServiceTest is Test {
 
     function test_setMinThawingPeriod_belowFloorReverts() public {
         vm.expectRevert(
-            abi.encodeWithSelector(
-                INuthatchDataService.ThawingPeriodTooShort.selector, uint64(14 days), uint64(1 days)
-            )
+            abi.encodeWithSelector(INuthatchDataService.ThawingPeriodTooShort.selector, uint64(14 days), uint64(1 days))
         );
         service.setMinThawingPeriod(1 days);
     }

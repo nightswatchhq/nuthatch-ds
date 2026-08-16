@@ -25,7 +25,7 @@ import {NuthatchDataService} from "../src/NuthatchDataService.sol";
 ///   PaymentsEscrow:      0xf6Fcc27aAf1fcD8B254498c9794451d82afC673E
 contract Deploy is Script {
     function run() external {
-        address owner_        = vm.envAddress("OWNER");
+        address owner_ = vm.envAddress("OWNER");
         address pauseGuardian = vm.envAddress("PAUSE_GUARDIAN");
 
         address controller = vm.envOr("GRAPH_CONTROLLER", address(0x9DB3ee191681f092607035d9BDA6e59FbEaCa695));
@@ -37,8 +37,7 @@ contract Deploy is Script {
         NuthatchDataService impl = new NuthatchDataService(controller, graphTallyCollector);
         console2.log("NuthatchDataService implementation:", address(impl));
 
-        bytes memory initData =
-            abi.encodeCall(NuthatchDataService.initialize, (owner_, pauseGuardian));
+        bytes memory initData = abi.encodeCall(NuthatchDataService.initialize, (owner_, pauseGuardian));
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
         console2.log("NuthatchDataService proxy deployed at:", address(proxy));
 

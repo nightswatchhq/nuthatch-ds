@@ -15,8 +15,8 @@ interface INuthatchDataService {
 
     /// @notice The query surface a provider exposes for a nest.
     enum QueryMode {
-        NAMED,  // 0 — Author-sanctioned named queries
-        SQL     // 1 — Arbitrary analytical SQL
+        NAMED, // 0 — Author-sanctioned named queries
+        SQL // 1 — Arbitrary analytical SQL
     }
 
     /// @notice An active or historical offering of one reproducible nest.
@@ -76,10 +76,7 @@ interface INuthatchDataService {
 
     function isRegistered(address provider) external view returns (bool);
 
-    function getServiceRegistrations(address provider)
-        external
-        view
-        returns (NestOffering[] memory);
+    function getServiceRegistrations(address provider) external view returns (NestOffering[] memory);
 
     /// @notice Stable identifier for an offering under a provider.
     function offeringKey(bytes32 nid, QueryMode mode) external pure returns (bytes32);

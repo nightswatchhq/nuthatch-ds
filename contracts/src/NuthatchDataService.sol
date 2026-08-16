@@ -147,8 +147,7 @@ contract NuthatchDataService is
         _checkProvisionTokens(serviceProvider);
         _checkProvisionParameters(serviceProvider, false);
 
-        (string memory endpoint, string memory geoHash, address dest) =
-            abi.decode(data, (string, string, address));
+        (string memory endpoint, string memory geoHash, address dest) = abi.decode(data, (string, string, address));
 
         registeredProviders[serviceProvider] = true;
         paymentsDestination[serviceProvider] = dest == address(0) ? serviceProvider : dest;
@@ -158,10 +157,7 @@ contract NuthatchDataService is
 
     /// @notice Deregister. All active services must be stopped first.
     /// @dev Not in IDataService — no override keyword.
-    function deregister(address serviceProvider, bytes calldata)
-        external
-        onlyAuthorizedForProvision(serviceProvider)
-    {
+    function deregister(address serviceProvider, bytes calldata) external onlyAuthorizedForProvision(serviceProvider) {
         if (!registeredProviders[serviceProvider]) revert ProviderNotRegistered(serviceProvider);
         if (activeServiceCount(serviceProvider) > 0) revert ActiveServicesExist(serviceProvider);
 
@@ -289,11 +285,7 @@ contract NuthatchDataService is
     }
 
     /// @inheritdoc INuthatchDataService
-    function getServiceRegistrations(address provider)
-        external
-        view
-        returns (NestOffering[] memory)
-    {
+    function getServiceRegistrations(address provider) external view returns (NestOffering[] memory) {
         return _offerings[provider];
     }
 

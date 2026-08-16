@@ -23,6 +23,8 @@ services:
     environment:
       GATEWAY_CONFIG: /app/config.toml
       RUST_LOG:       nuthatch_gateway=info,horizon_core=info
+      NUTHATCH_NID:   ${NUTHATCH_NID:?set NUTHATCH_NID in .env}
+      NUTHATCH_QUERY_MODE: ${NUTHATCH_QUERY_MODE:-NAMED}
     volumes:
       - ./gateway.toml:/app/config.toml:ro
     ports:

@@ -63,7 +63,8 @@ casually float it to a later Graph contracts release. The layout changed, natura
 
 3. Copy `gateway.example.toml` to `gateway.toml`, set the deployed proxy as
    `tap.data_service_address`, configure the provider address and operator key, and point
-   `backend.upstream_url` at the private Nuthatch runtime.
+   `backend.upstream_url` at the private Nuthatch runtime. For `docker compose`, use
+   `postgres` rather than `localhost` as the database host.
 4. Provision GRT, then call `register` followed by `startService` with:
 
    ```solidity
