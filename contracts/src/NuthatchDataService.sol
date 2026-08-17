@@ -119,6 +119,14 @@ contract NuthatchDataService is
         emit MinThawingPeriodSet(period);
     }
 
+    /// @notice Set the minimum GRT provision required to register a provider.
+    /// @dev The Horizon Staking contract still requires every provision itself to be non-zero.
+    ///      This service-level floor may therefore be zero for a soft launch.
+    function setMinimumProvisionTokens(uint256 minimum) external onlyOwner {
+        _setProvisionTokensRange(minimum, type(uint256).max);
+        emit MinimumProvisionTokensSet(minimum);
+    }
+
     /// @inheritdoc INuthatchDataService
     function withdrawFees(address to, uint256 amount) external onlyOwner {
         require(to != address(0), "zero address");

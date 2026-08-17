@@ -4,7 +4,7 @@
 # address and operator key. Keep gateway.toml mode 0600 and out of Git.
 
 [server]
-host = "0.0.0.0"
+host = "127.0.0.1"
 port = 8090
 
 [indexer]
@@ -21,12 +21,12 @@ max_receipt_age_ns = 30000000000
 aggregation_interval_secs = 60
 
 [backend]
-upstream_url = "http://host.docker.internal:8110/horizon"
+upstream_url = "http://127.0.0.1:8110/horizon"
 
 [database]
 # Replace DATABASE_PASSWORD with the same value used for POSTGRES_PASSWORD in
-# the Docker Compose .env file.
-url = "postgres://nuthatch:DATABASE_PASSWORD@postgres:5432/nuthatch_gateway"
+# the Docker Compose .env file. Postgres is loopback-only on the host.
+url = "postgres://nuthatch:DATABASE_PASSWORD@127.0.0.1:5432/nuthatch_gateway"
 
 [rate_limit]
 requests_per_second = 10

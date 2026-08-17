@@ -54,13 +54,14 @@ contract MockStaking {
 contract NuthatchDataServiceTest is Test {
     NuthatchDataService internal service;
     MockStaking internal staking;
+    ControllerMock internal controller;
 
     address internal owner = address(this);
     address internal provider = address(0xBEEF);
 
     function setUp() public {
         MockGRTToken grt = new MockGRTToken();
-        ControllerMock controller = new ControllerMock(address(this));
+        controller = new ControllerMock(address(this));
         staking = new MockStaking();
 
         controller.setContractProxy(keccak256("GraphToken"), address(grt));
@@ -87,6 +88,34 @@ contract NuthatchDataServiceTest is Test {
         assertEq(service.BURN_CUT_PPM(), 10000);
         assertEq(service.DATA_SERVICE_CUT_PPM(), 10000);
         assertEq(service.STAKE_TO_FEES_RATIO(), 5);
+    }
+
+    function test_ownerCanSetMinimumProvisionTokens() public {
+        service.setMinimumProvisionTokens(123e18);
+        (uint256 minimum, uint256 maximum) = service.getProvisionTokensRange();
+        assertEq(minimum, 123e18);
+        assertEq(maximum, type(uint256).max);
+    }
+
+    function test_upgradeCanMigrateProvisionFloorWithoutLosingOfferings() public {
+        vm.startPrank(provider);
+        service.register(provider, abi.encode("https://p", "geo", address(0)));
+        bytes32 nid = keccak256("horizon-nest");
+        service.startService(provider, abi.encode(nid, INuthatchDataService.QueryMode.NAMED, "https://p"));
+        vm.stopPrank();
+
+        service.setMinimumProvisionTokens(555e18);
+        NuthatchDataService implementationV2 = new NuthatchDataService(address(controller), address(1));
+        service.upgradeToAndCall(
+            address(implementationV2), abi.encodeCall(NuthatchDataService.setMinimumProvisionTokens, (0))
+        );
+
+        (uint256 minimum,) = service.getProvisionTokensRange();
+        assertEq(minimum, 0);
+        assertTrue(service.isRegistered(provider));
+        assertEq(service.activeServiceCount(provider), 1);
+        INuthatchDataService.NestOffering[] memory offerings = service.getServiceRegistrations(provider);
+        assertEq(offerings[0].nid, nid);
     }
 
     function test_register() public {

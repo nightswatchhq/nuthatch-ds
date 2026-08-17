@@ -58,11 +58,13 @@ The data-service proxy is
 configuration does not register a provider or move GRT. It only describes the
 provider which will eventually do so.
 
-For Docker Compose, create a mode-0600 `.env` containing `NUTHATCH_NID`,
-`NUTHATCH_QUERY_MODE` and a high-entropy `POSTGRES_PASSWORD`. Keep
-`gateway.toml` mode 0600. Compose publishes the gateway only on `127.0.0.1` and
-does not publish Postgres. Put TLS and any public DNS in a reverse proxy in
-front of it.
+For the production topology, run Postgres with Compose and the gateway as the
+host systemd unit at
+[`../../deployments/nuthatch-ds-gateway.service`](../../deployments/nuthatch-ds-gateway.service).
+This gives both the gateway and Nuthatch a loopback-only connection without
+Docker bridge forwarding. Keep `/etc/nuthatch-ds/gateway.toml` mode 0600.
+Compose binds Postgres only to `127.0.0.1`; Caddy is the only public entry
+point in front of the gateway.
 
 ## Rate limiting and operations
 

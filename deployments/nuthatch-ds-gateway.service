@@ -1,0 +1,26 @@
+[Unit]
+Description=Nuthatch Data Service Horizon gateway
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nuthatch
+Group=nuthatch
+Environment=GATEWAY_CONFIG=/etc/nuthatch-ds/gateway.toml
+# horizon-core at info logs connection diagnostics. Keep credentials out of journald.
+Environment=RUST_LOG=nuthatch_gateway=info,horizon_core=warn
+ExecStart=/opt/nuthatch-ds/bin/nuthatch-gateway
+Restart=always
+RestartSec=10
+MemoryMax=512M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

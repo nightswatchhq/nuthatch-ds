@@ -37,6 +37,7 @@ interface INuthatchDataService {
     event OfferingStarted(address indexed provider, bytes32 indexed nid, QueryMode mode, string endpoint);
     event OfferingStopped(address indexed provider, bytes32 indexed nid, QueryMode mode);
     event MinThawingPeriodSet(uint64 period);
+    event MinimumProvisionTokensSet(uint256 minimum);
     event FeesBurned(address indexed provider, uint256 amount);
     event FeesWithdrawn(address indexed to, uint256 amount);
 
@@ -66,6 +67,9 @@ interface INuthatchDataService {
 
     /// @notice Update the minimum thawing period (lower-bounded by MIN_THAWING_PERIOD).
     function setMinThawingPeriod(uint64 period) external;
+
+    /// @notice Set the minimum GRT provision required to register a provider.
+    function setMinimumProvisionTokens(uint256 minimum) external;
 
     /// @notice Withdraw accumulated data-service revenue to `to`.
     function withdrawFees(address to, uint256 amount) external;

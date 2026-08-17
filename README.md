@@ -120,11 +120,14 @@ chmod 600 .env
 docker compose --env-file .env up -d --build
 ```
 
-Compose exposes only `127.0.0.1:8090` and keeps Postgres on its internal Docker
-network. A reverse proxy provides TLS and public DNS. The gateway enforces a
-per-IP rate limit for all NID routes. The production default is 10 requests per
-second with a burst of 20. It must remain `NAMED` until a separate SQL offering
-is deliberately registered and the upstream is reviewed for that exposure.
+For production, run Postgres with Compose and the gateway using
+[`deployments/nuthatch-ds-gateway.service`](deployments/nuthatch-ds-gateway.service).
+Both the gateway and upstream Nuthatch runtime bind only to loopback, and
+Postgres binds only to `127.0.0.1`. A reverse proxy provides TLS and public DNS.
+The gateway enforces a per-IP rate limit for all NID routes. The production
+default is 10 requests per second with a burst of 20. It must remain `NAMED`
+until a separate SQL offering is deliberately registered and the upstream is
+reviewed for that exposure.
 
 ## Verification
 

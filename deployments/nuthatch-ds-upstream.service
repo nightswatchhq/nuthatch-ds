@@ -8,9 +8,8 @@ Type=simple
 User=nuthatch
 Group=nuthatch
 WorkingDirectory=/opt/nuthatch-ds/runtime
-# Docker reaches the host through the fixed compose bridge address. It is not a
-# public bind: only local containers on nuthatch_ds and the host can reach it.
-ExecStart=/usr/local/bin/nuthatch dev --dir /opt/nuthatch-ds/runtime --listen 172.30.0.1:8110 --no-admin --concurrency 1
+# The host gateway connects over loopback. This runtime is never directly public.
+ExecStart=/opt/nuthatch-ds/bin/nuthatch-2.5.0 dev --dir /opt/nuthatch-ds/runtime --listen 127.0.0.1:8110 --no-admin --concurrency 1
 Restart=always
 RestartSec=15
 MemoryMax=2G
