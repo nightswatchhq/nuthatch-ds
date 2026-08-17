@@ -1,0 +1,65 @@
+# Production mount configuration for the first Nuthatch Data Service offering.
+#
+# This is operator configuration, deliberately separate from the NID-authored
+# queries.toml ceiling. It exposes every author-sanctioned query and refuses
+# free-form SQL at the upstream before the payment gateway is involved.
+
+[runtime]
+name = "nuthatch-data-service"
+max_rss_mb = 2048
+
+[[chains]]
+chain = "arbitrum-one"
+chain_id = 42161
+rpc_urls = ["https://arb1.arbitrum.io/rpc"]
+
+[[mounts]]
+tenant = "default"
+alias = "horizon"
+nid = "36d3c71446a56cdb5b90536d3f5f77351b1d92efcca94bc2fd41b1c368e69410"
+sql = "allowlist"
+
+[[mounts.queries]]
+name = "top_indexers"
+sql = '''
+SELECT "indexer", rewards, query_fees, active_allocations
+FROM indexers
+ORDER BY active_allocations DESC, "indexer"
+LIMIT {n}
+'''
+params = { n = "int" }
+
+[[mounts.queries]]
+name = "indexer"
+sql = '''
+SELECT "indexer", rewards, query_fees, active_allocations
+FROM indexers
+WHERE lower("indexer") = lower({address})
+'''
+params = { address = "address" }
+
+[[mounts.queries]]
+name = "active_allocations"
+sql = '''
+SELECT "allocationId", "indexer", "subgraphDeploymentId", tokens
+FROM allocations
+WHERE status = 'active'
+ORDER BY tokens DESC
+LIMIT {n}
+'''
+params = { n = "int" }
+
+[[mounts.queries]]
+name = "delegations_for_indexer"
+sql = '''
+SELECT "indexer", "delegator", tokens
+FROM delegations
+WHERE lower("indexer") = lower({address})
+ORDER BY tokens DESC
+LIMIT {n}
+'''
+params = { address = "address", n = "int" }
+
+[[mounts.queries]]
+name = "network_totals"
+sql = "SELECT * FROM global"

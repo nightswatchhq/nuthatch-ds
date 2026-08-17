@@ -10,6 +10,6 @@
   "graph_tally_collector": "0x8f69F5C07477Ac46FBc491B1E6D91E2bb0111A9e",
   "implementation_deployment_tx": "0xd02b1dfc5c00e12895a466ca1b5452d890362615604ac328ce666b2ea455a83f",
   "proxy_deployment_tx": "0x42eb043cc985c166c12569c4869105356ebfbc02414e0c7a3e1f728190bfc130",
-  "horizon_nest_nid": "3e678eeb7c1adc59bf57ca08ed6a5c9bef2a4dfd795689229c5aa536b43a7204",
+  "horizon_nest_nid": "36d3c71446a56cdb5b90536d3f5f77351b1d92efcca94bc2fd41b1c368e69410",
   "minimum_provision_grt": "555"
 }

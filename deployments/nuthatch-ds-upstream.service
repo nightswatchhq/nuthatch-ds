@@ -1,0 +1,24 @@
+[Unit]
+Description=Nuthatch Data Service hardened Horizon nest
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nuthatch
+Group=nuthatch
+WorkingDirectory=/opt/nuthatch-ds/runtime
+ExecStart=/usr/local/bin/nuthatch dev --dir /opt/nuthatch-ds/runtime --listen 127.0.0.1:8110 --no-admin --concurrency 1
+Restart=always
+RestartSec=15
+MemoryMax=2G
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

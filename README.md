@@ -8,6 +8,11 @@ The Arbitrum One proxy deployment is
 See [`deployments/arbitrum-one.json`](deployments/arbitrum-one.json) for the immutable deployment
 record.
 
+The deployed proxy currently has a 555 GRT provision floor. The repository prepares a zero-floor
+soft-launch upgrade, but that is not effective on-chain until the proxy owner executes it. A
+deployment record is history, not an oracle, which is why it says 555 GRT until that transaction
+exists.
+
 The unit of service is a Nuthatch nest identity, or NID. A provider advertises a
 specific `(NID, QueryMode, endpoint)` offering on-chain. Consumers can therefore choose
 an independently reproducible dataset, not merely a server which says that it does SQL.

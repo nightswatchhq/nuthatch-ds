@@ -1,12 +1,11 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER:     nuthatch
       POSTGRES_PASSWORD: nuthatch
       POSTGRES_DB:       nuthatch_gateway
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -17,6 +16,7 @@ services:
 
   nuthatch-gateway:
     build: .
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -27,8 +27,11 @@ services:
       NUTHATCH_QUERY_MODE: ${NUTHATCH_QUERY_MODE:-NAMED}
     volumes:
       - ./gateway.toml:/app/config.toml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
-      - "8090:8090"
+      # Caddy on the host is the only public entry point.
+      - "127.0.0.1:8090:8090"
 
 volumes:
   pgdata:

@@ -28,11 +28,11 @@ enum QueryMode {
 
 impl QueryMode {
     fn from_env() -> anyhow::Result<Self> {
-        match std::env::var("NUTHATCH_QUERY_MODE")
-            .unwrap_or_else(|_| "NAMED".to_owned())
-            .to_ascii_uppercase()
-            .as_str()
-        {
+        Self::parse(&std::env::var("NUTHATCH_QUERY_MODE").unwrap_or_else(|_| "NAMED".to_owned()))
+    }
+
+    fn parse(value: &str) -> anyhow::Result<Self> {
+        match value.to_ascii_uppercase().as_str() {
             "NAMED" => Ok(Self::Named),
             "SQL" => Ok(Self::Sql),
             value => anyhow::bail!("NUTHATCH_QUERY_MODE must be NAMED or SQL, got {value}"),
@@ -43,7 +43,10 @@ impl QueryMode {
 /// The NID this gateway serves. It is intentionally configuration, not caller input:
 /// an on-chain provider advertises the same NID and endpoint as its offering.
 fn configured_nid() -> anyhow::Result<String> {
-    let nid = std::env::var("NUTHATCH_NID")?;
+    parse_nid(&std::env::var("NUTHATCH_NID")?)
+}
+
+fn parse_nid(nid: &str) -> anyhow::Result<String> {
     if nid.len() != 64 || !nid.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         anyhow::bail!("NUTHATCH_NID must be a 64-character hexadecimal NID")
     }
@@ -118,7 +121,8 @@ async fn named_query(
     Path((nid, query)): Path<(String, String)>,
     request: Request<Body>,
 ) -> GatewayResult {
-    forward_paid(&state, &config, nid, &format!("/q/{query}"), request).await
+    let upstream_path = nuthatch_path("q", &query)?;
+    forward_paid(&state, &config, nid, &upstream_path, request).await
 }
 
 async fn table(
@@ -127,7 +131,8 @@ async fn table(
     Path((nid, table)): Path<(String, String)>,
     request: Request<Body>,
 ) -> GatewayResult {
-    forward_paid(&state, &config, nid, &format!("/table/{table}"), request).await
+    let upstream_path = nuthatch_path("table", &table)?;
+    forward_paid(&state, &config, nid, &upstream_path, request).await
 }
 
 async fn sql(
@@ -195,6 +200,26 @@ fn check_nid(config: &PublicConfig, nid: &str) -> Result<(), (StatusCode, String
     }
 }
 
+/// Build one of Nuthatch's identifier-addressed public paths.
+///
+/// Query and table names become part of the upstream URL, so accept only the
+/// grammar Nuthatch uses for identifiers. In particular, reject percent signs,
+/// dots and slashes rather than allowing a caller to smuggle another upstream
+/// path through an otherwise narrow gateway.
+fn nuthatch_path(kind: &str, identifier: &str) -> Result<String, (StatusCode, String)> {
+    if identifier.is_empty()
+        || !identifier
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("invalid Nuthatch {kind} identifier"),
+        ));
+    }
+    Ok(format!("/{kind}/{identifier}"))
+}
+
 async fn forward(state: &AppState, upstream_path: &str, request: Request<Body>) -> GatewayResult {
     let query = request
         .uri()
@@ -232,4 +257,67 @@ async fn forward(state: &AppState, upstream_path: &str, request: Request<Body>) 
         .header("content-type", content_type)
         .body(Body::from(bytes))
         .unwrap())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const NID: &str = "36d3c71446a56cdb5b90536d3f5f77351b1d92efcca94bc2fd41b1c368e69410";
+
+    #[test]
+    fn parses_a_canonical_nid() {
+        assert_eq!(parse_nid(&NID.to_ascii_uppercase()).unwrap(), NID);
+    }
+
+    #[test]
+    fn rejects_invalid_nids() {
+        for nid in [
+            "",
+            "0x36d3c71446a56cdb5b90536d3f5f77351b1d92efcca94bc2fd41b1c368e69410",
+            "xyz",
+        ] {
+            assert!(parse_nid(nid).is_err(), "{nid} should be rejected");
+        }
+    }
+
+    #[test]
+    fn parses_query_modes_case_insensitively() {
+        assert_eq!(QueryMode::parse("named").unwrap(), QueryMode::Named);
+        assert_eq!(QueryMode::parse("SQL").unwrap(), QueryMode::Sql);
+        assert!(QueryMode::parse("everything").is_err());
+    }
+
+    #[test]
+    fn only_allows_safe_upstream_identifiers() {
+        assert_eq!(
+            nuthatch_path("q", "top_indexers").unwrap(),
+            "/q/top_indexers"
+        );
+        assert_eq!(
+            nuthatch_path("table", "erc20-transfers").unwrap(),
+            "/table/erc20-transfers"
+        );
+        for identifier in ["", ".", "..", "a/b", "%2f_admin", "query?sql=select"] {
+            let error = nuthatch_path("q", identifier).unwrap_err();
+            assert_eq!(
+                error.0,
+                StatusCode::BAD_REQUEST,
+                "{identifier} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn only_the_configured_nid_is_served() {
+        let config = PublicConfig {
+            nid: NID.to_owned(),
+            mode: QueryMode::Named,
+        };
+        assert!(check_nid(&config, &NID.to_ascii_uppercase()).is_ok());
+        assert_eq!(
+            check_nid(&config, "00").unwrap_err().0,
+            StatusCode::NOT_FOUND
+        );
+    }
 }

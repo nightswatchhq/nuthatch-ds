@@ -1,0 +1,31 @@
+# Arbitrum One provider-gateway configuration.
+#
+# Copy this file to gateway.toml on the host and replace only the provider
+# address and operator key. Keep gateway.toml mode 0600 and out of Git.
+
+[server]
+host = "0.0.0.0"
+port = 8090
+
+[indexer]
+service_provider_address = "0x0000000000000000000000000000000000000000"
+operator_private_key = "0x0000000000000000000000000000000000000000000000000000000000000000"
+
+[tap]
+data_service_address = "0x647D1Fd14AF2DE3947522B74F1de5B99d317c10A"
+authorized_senders = []
+eip712_domain_name = "GraphTallyCollector"
+eip712_chain_id = 42161
+eip712_verifying_contract = "0x8f69F5C07477Ac46FBc491B1E6D91E2bb0111A9e"
+max_receipt_age_ns = 30000000000
+aggregation_interval_secs = 60
+
+[backend]
+upstream_url = "http://host.docker.internal:8110/horizon"
+
+[database]
+url = "postgres://nuthatch:nuthatch@postgres:5432/nuthatch_gateway"
+
+[rate_limit]
+requests_per_second = 10
+burst_size = 20

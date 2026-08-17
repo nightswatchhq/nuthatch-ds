@@ -38,7 +38,8 @@ contract NuthatchDataService is
     // -------------------------------------------------------------------------
 
     /// @notice Minimum GRT provision per registered provider.
-    uint256 public constant MIN_PROVISION = 555e18;
+    /// @dev Zero enables a soft launch while providers bring the data plane online.
+    uint256 public constant MIN_PROVISION = 0;
 
     /// @notice Fraction of collected fees burned (PPM: 1% = 10_000).
     uint256 public constant BURN_CUT_PPM = 10000;

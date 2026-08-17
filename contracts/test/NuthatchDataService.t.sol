@@ -43,10 +43,9 @@ contract MockStaking {
     }
 
     function getDelegationPool(address, address) external pure returns (IHorizonStakingTypes.DelegationPool memory) {
-        return
-            IHorizonStakingTypes.DelegationPool({
-                tokens: 0, shares: 0, tokensThawing: 0, sharesThawing: 0, thawingNonce: 0
-            });
+        return IHorizonStakingTypes.DelegationPool({
+            tokens: 0, shares: 0, tokensThawing: 0, sharesThawing: 0, thawingNonce: 0
+        });
     }
     function slash(address, uint256, uint256, address) external {}
     function acceptProvisionParameters(address) external {}
@@ -79,12 +78,12 @@ contract NuthatchDataServiceTest is Test {
         bytes memory initData = abi.encodeCall(NuthatchDataService.initialize, (owner, owner));
         service = NuthatchDataService(address(new ERC1967Proxy(address(impl), initData)));
 
-        // Provider provisions well above MIN_PROVISION, with a valid thawing period.
+        // Provider uses a valid thawing period. The soft-launch provision floor is zero.
         staking.setProvision(provider, address(service), 1_000_000e18, 14 days);
     }
 
     function test_constants() public view {
-        assertEq(service.MIN_PROVISION(), 555e18);
+        assertEq(service.MIN_PROVISION(), 0);
         assertEq(service.BURN_CUT_PPM(), 10000);
         assertEq(service.DATA_SERVICE_CUT_PPM(), 10000);
         assertEq(service.STAKE_TO_FEES_RATIO(), 5);
@@ -105,6 +104,16 @@ contract NuthatchDataServiceTest is Test {
         vm.expectRevert(abi.encodeWithSelector(INuthatchDataService.ProviderAlreadyRegistered.selector, provider));
         service.register(provider, abi.encode("https://p", "geo", address(0)));
         vm.stopPrank();
+    }
+
+    function test_register_allowsZeroProvision() public {
+        address zeroProvisionProvider = address(0xCAFE);
+        staking.setProvision(zeroProvisionProvider, address(service), 0, 14 days);
+
+        vm.prank(zeroProvisionProvider);
+        service.register(zeroProvisionProvider, abi.encode("https://p", "geo", address(0)));
+
+        assertTrue(service.isRegistered(zeroProvisionProvider));
     }
 
     function test_startAndStopOffering() public {
@@ -139,6 +148,52 @@ contract NuthatchDataServiceTest is Test {
         vm.stopPrank();
     }
 
+    function test_restartingOfferingUpdatesRatherThanDuplicates() public {
+        vm.startPrank(provider);
+        service.register(provider, abi.encode("https://p", "geo", address(0)));
+        bytes32 nid = keccak256("horizon-nest");
+        service.startService(provider, abi.encode(nid, INuthatchDataService.QueryMode.NAMED, "https://one"));
+        service.stopService(provider, abi.encode(nid, INuthatchDataService.QueryMode.NAMED));
+        service.startService(provider, abi.encode(nid, INuthatchDataService.QueryMode.NAMED, "https://two"));
+
+        INuthatchDataService.NestOffering[] memory offerings = service.getServiceRegistrations(provider);
+        assertEq(offerings.length, 1);
+        assertEq(offerings[0].endpoint, "https://two");
+        assertTrue(offerings[0].active);
+        assertEq(service.activeServiceCount(provider), 1);
+        vm.stopPrank();
+    }
+
+    function test_startService_rejectsZeroNid() public {
+        vm.startPrank(provider);
+        service.register(provider, abi.encode("https://p", "geo", address(0)));
+        vm.expectRevert(INuthatchDataService.InvalidNid.selector);
+        service.startService(provider, abi.encode(bytes32(0), INuthatchDataService.QueryMode.NAMED, "https://p"));
+        vm.stopPrank();
+    }
+
+    function test_startService_rejectsUnregisteredProvider() public {
+        vm.prank(provider);
+        vm.expectRevert(abi.encodeWithSelector(INuthatchDataService.ProviderNotRegistered.selector, provider));
+        service.startService(
+            provider, abi.encode(keccak256("horizon-nest"), INuthatchDataService.QueryMode.NAMED, "https://p")
+        );
+    }
+
+    function test_stopService_rejectsWrongOffering() public {
+        vm.startPrank(provider);
+        service.register(provider, abi.encode("https://p", "geo", address(0)));
+        bytes32 nid = keccak256("horizon-nest");
+        service.startService(provider, abi.encode(nid, INuthatchDataService.QueryMode.NAMED, "https://p"));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                INuthatchDataService.OfferingNotFound.selector, provider, nid, INuthatchDataService.QueryMode.SQL
+            )
+        );
+        service.stopService(provider, abi.encode(nid, INuthatchDataService.QueryMode.SQL));
+        vm.stopPrank();
+    }
+
     function test_deregister_revertsWithActiveServices() public {
         vm.startPrank(provider);
         service.register(provider, abi.encode("https://p", "geo", address(0)));
@@ -147,6 +202,25 @@ contract NuthatchDataServiceTest is Test {
         );
         vm.expectRevert(abi.encodeWithSelector(INuthatchDataService.ActiveServicesExist.selector, provider));
         service.deregister(provider, "");
+        vm.stopPrank();
+    }
+
+    function test_providerCanDeregisterAfterStoppingOffering() public {
+        vm.startPrank(provider);
+        service.register(provider, abi.encode("https://p", "geo", address(0)));
+        bytes32 nid = keccak256("horizon-nest");
+        service.startService(provider, abi.encode(nid, INuthatchDataService.QueryMode.NAMED, "https://p"));
+        service.stopService(provider, abi.encode(nid, INuthatchDataService.QueryMode.NAMED));
+        service.deregister(provider, "");
+        assertFalse(service.isRegistered(provider));
+        vm.stopPrank();
+    }
+
+    function test_setPaymentsDestinationDefaultsToProvider() public {
+        vm.startPrank(provider);
+        service.register(provider, abi.encode("https://p", "geo", address(0xABCD)));
+        service.setPaymentsDestination(address(0));
+        assertEq(service.paymentsDestination(provider), provider);
         vm.stopPrank();
     }
 
