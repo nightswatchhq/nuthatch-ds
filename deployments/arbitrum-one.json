@@ -1,0 +1,15 @@
+{
+  "chain_id": 42161,
+  "network": "arbitrum-one",
+  "data_service": "NuthatchDataService",
+  "proxy": "0x647D1Fd14AF2DE3947522B74F1de5B99d317c10A",
+  "implementation": "0xC01930047f480C10d646619dAE2FdAcea236E5f6",
+  "owner": "0x02526499Ae2879A94090267017C3816f733825Bb",
+  "pause_guardian": "0x02526499Ae2879A94090267017C3816f733825Bb",
+  "graph_controller": "0x0a8491544221dd212964fbb96487467291b2C97e",
+  "graph_tally_collector": "0x8f69F5C07477Ac46FBc491B1E6D91E2bb0111A9e",
+  "implementation_deployment_tx": "0xd02b1dfc5c00e12895a466ca1b5452d890362615604ac328ce666b2ea455a83f",
+  "proxy_deployment_tx": "0x42eb043cc985c166c12569c4869105356ebfbc02414e0c7a3e1f728190bfc130",
+  "horizon_nest_nid": "3e678eeb7c1adc59bf57ca08ed6a5c9bef2a4dfd795689229c5aa536b43a7204",
+  "minimum_provision_grt": "555"
+}

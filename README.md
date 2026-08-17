@@ -3,6 +3,11 @@
 Paid access to reproducible, self-hosted [Nuthatch](https://github.com/nightswatchhq/nuthatch)
 indexed datasets on Graph Horizon.
 
+The Arbitrum One proxy deployment is
+[`0x647D…c10A`](https://arbiscan.io/address/0x647D1Fd14AF2DE3947522B74F1de5B99d317c10A).
+See [`deployments/arbitrum-one.json`](deployments/arbitrum-one.json) for the immutable deployment
+record.
+
 The unit of service is a Nuthatch nest identity, or NID. A provider advertises a
 specific `(NID, QueryMode, endpoint)` offering on-chain. Consumers can therefore choose
 an independently reproducible dataset, not merely a server which says that it does SQL.
