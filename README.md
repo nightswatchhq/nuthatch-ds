@@ -129,7 +129,11 @@ default is 10 requests per second with a burst of 20. It must remain `NAMED`
 until a separate SQL offering is deliberately registered and the upstream is
 reviewed for that exposure.
 
+
 ## Verification
+
+The working mainnet beta and its exact checks are described in
+[`docs/announcing-nuthatch-data-service.md`](docs/announcing-nuthatch-data-service.md).
 
 ```bash
 cargo fmt --check

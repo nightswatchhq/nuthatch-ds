@@ -11,6 +11,12 @@
   "implementation_deployment_tx": "0xd02b1dfc5c00e12895a466ca1b5452d890362615604ac328ce666b2ea455a83f",
   "proxy_deployment_tx": "0x42eb043cc985c166c12569c4869105356ebfbc02414e0c7a3e1f728190bfc130",
   "upgrade_tx": "0xdb512643b0eb2f73cbfa4d86d1307abc125739d8e6c007a512c0b89f5291d3b5",
+  "provider": "0x02526499Ae2879A94090267017C3816f733825Bb",
+  "gateway_endpoint": "https://nuthatchds.89.167.109.4.sslip.io",
+  "provider_registration_tx": "0xaf2a813f668d7deca607ebba8f4290ecbfcb79cc2946574696c17d9805a16e1f",
+  "offering_start_tx": "0x69ca92e9995d6a418d89047271a4d51bc2ef97c6fb1cb8c5331f0a54886b6e1f",
+  "test_escrow_deposit_tx": "0xd619dbc78962d0b3109e1ea5e553cc6b28c97e181d201258e1b7e851e5c6ed10",
+  "test_collect_tx": "0x9138d9bd8f5937162f87261b8e6853f692e1a76f6bcd0f497defb50c5f680c05",
   "horizon_nest_nid": "36d3c71446a56cdb5b90536d3f5f77351b1d92efcca94bc2fd41b1c368e69410",
   "minimum_provision_grt": "0"
 }
