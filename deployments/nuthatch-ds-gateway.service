@@ -8,6 +8,8 @@ Type=simple
 User=nuthatch
 Group=nuthatch
 Environment=GATEWAY_CONFIG=/etc/nuthatch-ds/gateway.toml
+Environment=NUTHATCH_NID=36d3c71446a56cdb5b90536d3f5f77351b1d92efcca94bc2fd41b1c368e69410
+Environment=NUTHATCH_QUERY_MODE=NAMED
 # horizon-core at info logs connection diagnostics. Keep credentials out of journald.
 Environment=RUST_LOG=nuthatch_gateway=info,horizon_core=warn
 ExecStart=/opt/nuthatch-ds/bin/nuthatch-gateway
