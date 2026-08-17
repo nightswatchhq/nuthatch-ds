@@ -8,7 +8,9 @@ Type=simple
 User=nuthatch
 Group=nuthatch
 WorkingDirectory=/opt/nuthatch-ds/runtime
-ExecStart=/usr/local/bin/nuthatch dev --dir /opt/nuthatch-ds/runtime --listen 127.0.0.1:8110 --no-admin --concurrency 1
+# Docker reaches the host through this bridge address. It is not a public bind:
+# only local containers and the host can reach it.
+ExecStart=/usr/local/bin/nuthatch dev --dir /opt/nuthatch-ds/runtime --listen 172.17.0.1:8110 --no-admin --concurrency 1
 Restart=always
 RestartSec=15
 MemoryMax=2G

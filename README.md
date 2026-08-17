@@ -96,7 +96,8 @@ exposes only the five queries sanctioned by `horizon-nest` and refuses arbitrary
 `/sql` and `/explain`. It is designed for the Nuthatch 2.x `[[chains]]` runtime
 configuration. The systemd unit at
 [`deployments/nuthatch-ds-upstream.service`](deployments/nuthatch-ds-upstream.service)
-binds it to loopback and disables the Nuthatch admin UI.
+binds it to the local Docker bridge and disables the Nuthatch admin UI. The
+bridge address is reachable by local containers but not by the public network.
 
 ### Gateway deployment
 
