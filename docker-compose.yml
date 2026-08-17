@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER:     nuthatch
-      POSTGRES_PASSWORD: nuthatch
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB:       nuthatch_gateway
     volumes:
       - pgdata:/var/lib/postgresql/data

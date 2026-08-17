@@ -42,3 +42,4 @@ jobs:
         env:
           NUTHATCH_NID: 36d3c71446a56cdb5b90536d3f5f77351b1d92efcca94bc2fd41b1c368e69410
           NUTHATCH_QUERY_MODE: NAMED
+          POSTGRES_PASSWORD: ci-only-password

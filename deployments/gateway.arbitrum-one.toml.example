@@ -24,7 +24,9 @@ aggregation_interval_secs = 60
 upstream_url = "http://host.docker.internal:8110/horizon"
 
 [database]
-url = "postgres://nuthatch:nuthatch@postgres:5432/nuthatch_gateway"
+# Replace DATABASE_PASSWORD with the same value used for POSTGRES_PASSWORD in
+# the Docker Compose .env file.
+url = "postgres://nuthatch:DATABASE_PASSWORD@postgres:5432/nuthatch_gateway"
 
 [rate_limit]
 requests_per_second = 10
