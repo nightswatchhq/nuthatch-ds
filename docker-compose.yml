@@ -22,7 +22,9 @@ services:
         condition: service_healthy
     environment:
       GATEWAY_CONFIG: /app/config.toml
-      RUST_LOG:       nuthatch_gateway=info,horizon_core=info
+      # horizon-core's info logs include configuration diagnostics; keep the
+      # shared crate at warn so connection strings never reach container logs.
+      RUST_LOG:       nuthatch_gateway=info,horizon_core=warn
       NUTHATCH_NID:   ${NUTHATCH_NID:?set NUTHATCH_NID in .env}
       NUTHATCH_QUERY_MODE: ${NUTHATCH_QUERY_MODE:-NAMED}
     volumes:
