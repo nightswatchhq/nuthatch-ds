@@ -8,6 +8,8 @@ services:
       POSTGRES_DB:       nuthatch_gateway
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - nuthatch_ds
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U nuthatch"]
       interval: 5s
@@ -30,10 +32,21 @@ services:
     volumes:
       - ./gateway.toml:/app/config.toml:ro
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      # The upstream binds only to this compose bridge gateway, never a public interface.
+      - "host.docker.internal:172.30.0.1"
     ports:
       # Caddy on the host is the only public entry point.
       - "127.0.0.1:8090:8090"
+    networks:
+      - nuthatch_ds
 
 volumes:
   pgdata:
+
+networks:
+  nuthatch_ds:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
