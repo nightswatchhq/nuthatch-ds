@@ -1,0 +1,57 @@
+# Arbitrum One provider-gateway configuration — Docker Compose deployment.
+#
+# Copy to ./gateway.toml, mode 0600. It is bind-mounted read-only at
+# /app/config.toml. Replace the provider address, the operator key, and the
+# database password.
+#
+# The two differences from the host (systemd) template matter:
+#   - host = "0.0.0.0" binds the container's own interface. Docker publishes the
+#     port to 127.0.0.1 on the host, and it connects to the container's bridge
+#     address, not the container's loopback. Bind 127.0.0.1 here and the
+#     published port reaches nothing at all.
+#   - the database host is the `postgres` service name on the Compose network,
+#     not 127.0.0.1.
+
+[server]
+host = "0.0.0.0"
+port = 8090
+
+[indexer]
+service_provider_address = "0x0000000000000000000000000000000000000000"
+operator_private_key = "0x0000000000000000000000000000000000000000000000000000000000000000"
+
+[tap]
+data_service_address = "0x647D1Fd14AF2DE3947522B74F1de5B99d317c10A"
+# See the host template: an empty list is safe only with [gate] configured, and
+# the gateway refuses to start with both empty.
+authorized_senders = []
+eip712_domain_name = "GraphTallyCollector"
+eip712_chain_id = 42161
+eip712_verifying_contract = "0x8f69F5C07477Ac46FBc491B1E6D91E2bb0111A9e"
+max_receipt_age_ns = 30000000000
+aggregation_interval_secs = 60
+# aggregator_url = "http://tap-aggregator:7610"
+
+[backend]
+# The private Nuthatch runtime on the Docker host. host.docker.internal resolves
+# there from Linux containers only with the extra_hosts entry in the Compose file.
+upstream_url = "http://host.docker.internal:8110/horizon"
+
+[database]
+url = "postgres://nuthatch:DATABASE_PASSWORD@postgres:5432/nuthatch_gateway"
+
+[gate]
+rpc_url = "https://arb1.arbitrum.io/rpc"
+payments_escrow = "0xf6Fcc27aAf1fcD8B254498c9794451d82afC673E"
+min_escrow_balance = "0"
+cache_ttl_secs = 30
+rpc_timeout_secs = 5
+
+[collector]
+arbitrum_rpc_url = "https://arb1.arbitrum.io/rpc"
+collect_interval_secs = 3600
+min_collect_value = "0"
+
+[rate_limit]
+requests_per_second = 10
+burst_size = 20

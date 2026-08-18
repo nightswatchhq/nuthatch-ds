@@ -1,0 +1,26 @@
+# The build context is public to every layer in the builder stage. Secrets that
+# the README has you create in the repo root must never enter it.
+.env
+.env.*
+!.env.example
+gateway.toml
+gateway.*.toml
+!gateway.example.toml
+
+# Build output — large, host-specific, and rebuilt inside the image anyway.
+target
+out
+cache
+broadcast
+
+# Not needed to build the gateway binary.
+.git
+.github
+docs
+deployments
+contracts
+lib
+foundry.toml
+foundry.lock
+*.md
+.DS_Store

@@ -9,7 +9,9 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      # The host systemd gateway is the only database client in production.
+      # Only needed when the gateway runs on the host under systemd. Comment this
+      # out for an all-Compose deployment: the gateway reaches Postgres over the
+      # Compose network as `postgres:5432` and nothing else should.
       - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U nuthatch"]
@@ -31,7 +33,23 @@ services:
       NUTHATCH_NID:   ${NUTHATCH_NID:?set NUTHATCH_NID in .env}
       NUTHATCH_QUERY_MODE: ${NUTHATCH_QUERY_MODE:-NAMED}
     volumes:
+      # Start from deployments/gateway.arbitrum-one.compose.toml.example. The
+      # host-and-systemd template binds container-loopback, which the published
+      # port below cannot reach.
       - ./gateway.toml:/app/config.toml:ro
+    extra_hosts:
+      # The private Nuthatch runtime listens on the host's loopback. Docker
+      # Desktop provides this name already; on Linux this entry supplies it.
+      - "host.docker.internal:host-gateway"
+    read_only: true
+    # rustls and reqwest do not write to disk, but a read-only root filesystem
+    # with nowhere to put a temporary file is a poor way to find an exception.
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     ports:
       # Caddy on the host is the only public entry point.
       - "127.0.0.1:8090:8090"

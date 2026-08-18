@@ -1,20 +1,31 @@
-# Nuthatch Data Service gateway configuration.
-# Copy to gateway.toml and fill in real values. Load path via $GATEWAY_CONFIG.
+# Nuthatch Data Service gateway configuration — annotated reference.
+#
+# Copy to gateway.toml and fill in real values; load path via $GATEWAY_CONFIG.
+# Addresses below are Arbitrum Sepolia. For mainnet start from one of:
+#   deployments/gateway.arbitrum-one.toml.example          (host / systemd)
+#   deployments/gateway.arbitrum-one.compose.toml.example  (Docker Compose)
 
 [server]
+# 0.0.0.0 is correct inside a container, where Docker publishes the port to the
+# host's loopback. Running the binary directly on a host, bind 127.0.0.1 and put
+# a reverse proxy in front.
 host = "0.0.0.0"
 port = 8090
 
 [indexer]
 # This provider's on-chain address (the registered service provider).
 service_provider_address = "0x0000000000000000000000000000000000000000"
-# Hex 32-byte operator key used to sign collect() transactions. Keep secret.
+# Hex 32-byte operator key used to sign collect() transactions. Keep secret:
+# mode 0600, out of Git, out of the Docker build context.
 operator_private_key = "0x0000000000000000000000000000000000000000000000000000000000000000"
 
 [tap]
 # NuthatchDataService proxy address (set after deployment).
 data_service_address = "0x0000000000000000000000000000000000000000"
-# Consumer addresses authorised to issue TAP receipts. Empty = accept any valid signer.
+# Consumer addresses authorised to issue TAP receipts. An EMPTY list accepts a
+# receipt from ANY signer, and is safe only when [gate] is configured to check
+# payer authorisation and escrow on-chain. The gateway refuses to start if both
+# this list is empty and [gate] is absent.
 authorized_senders = []
 # GraphTallyCollector domain — defaults for arbitrum_sepolia.
 eip712_domain_name = "GraphTallyCollector"
@@ -28,11 +39,31 @@ aggregation_interval_secs = 60
 
 [backend]
 # The private Nuthatch runtime. The public gateway exposes only its NID-addressed
-# schema, named-query, table, and optional SQL routes.
-upstream_url = "http://127.0.0.1:8288"
+# schema, named-query, table, and optional SQL routes; everything else is a 404.
+upstream_url = "http://127.0.0.1:8110/horizon"
 
 [database]
 url = "postgres://nuthatch:nuthatch@localhost:5432/nuthatch_gateway"
+
+# Pre-forward payment checks (omit the whole section to disable — see the note on
+# authorized_senders above).
+#
+# A receipt signature proves only that somebody signed. It does not prove the
+# payer named in the receipt metadata authorised that signer, and it does not
+# prove that payer holds any escrow. GraphTallyCollector checks both when the RAV
+# is finally redeemed, which is far too late to decline the query. So the gateway
+# checks both here, per request, with a short TTL cache, and fails closed if the
+# RPC cannot answer.
+[gate]
+rpc_url = "https://sepolia-rollup.arbitrum.io/rpc"
+# Horizon PaymentsEscrow.
+#   Arbitrum One:     0xf6Fcc27aAf1fcD8B254498c9794451d82afC673E
+#   Arbitrum Sepolia: 0x09B985a2042848A08bA59060EaF0f07c6F5D4d54
+payments_escrow = "0x09B985a2042848A08bA59060EaF0f07c6F5D4d54"
+# Escrow required on top of each receipt's value, in GRT wei.
+min_escrow_balance = "0"
+cache_ttl_secs = 30
+rpc_timeout_secs = 5
 
 # On-chain RAV collection (omit the whole section to disable).
 [collector]

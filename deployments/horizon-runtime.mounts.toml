@@ -3,6 +3,10 @@
 # This is operator configuration, deliberately separate from the NID-authored
 # queries.toml ceiling. It exposes every author-sanctioned query and refuses
 # free-form SQL at the upstream before the payment gateway is involved.
+#
+# Every caller-supplied LIMIT is clamped. Without the clamp a 1 CU named query
+# accepts an arbitrary row count, and the gateway buffers the whole response
+# under a 512 MiB cap; a single cheap query would then be a restart button.
 
 [runtime]
 name = "nuthatch-data-service"
@@ -25,7 +29,7 @@ sql = '''
 SELECT "indexer", rewards, query_fees, active_allocations
 FROM indexers
 ORDER BY active_allocations DESC, "indexer"
-LIMIT {n}
+LIMIT LEAST({n}, 1000)
 '''
 params = { n = "int" }
 
@@ -45,7 +49,7 @@ SELECT "allocationId", "indexer", "subgraphDeploymentId", tokens
 FROM allocations
 WHERE status = 'active'
 ORDER BY tokens DESC
-LIMIT {n}
+LIMIT LEAST({n}, 1000)
 '''
 params = { n = "int" }
 
@@ -56,10 +60,10 @@ SELECT "indexer", "delegator", tokens
 FROM delegations
 WHERE lower("indexer") = lower({address})
 ORDER BY tokens DESC
-LIMIT {n}
+LIMIT LEAST({n}, 1000)
 '''
 params = { address = "address", n = "int" }
 
 [[mounts.queries]]
 name = "network_totals"
-sql = "SELECT * FROM global"
+sql = "SELECT * FROM global LIMIT 1000"
