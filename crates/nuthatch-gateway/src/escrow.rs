@@ -204,6 +204,28 @@ fn insufficient_escrow(balance: u128, required: u128) -> GateRejection {
 mod tests {
     use super::*;
 
+    fn core_config(service_provider: &str, collector: &str) -> Config {
+        toml::from_str(&format!(
+            r#"
+            [server]
+            host = "127.0.0.1"
+            port = 8090
+            [indexer]
+            service_provider_address = "{service_provider}"
+            operator_private_key = "0x01"
+            [tap]
+            data_service_address = "0x0000000000000000000000000000000000000002"
+            authorized_senders = []
+            eip712_verifying_contract = "{collector}"
+            [backend]
+            upstream_url = "http://127.0.0.1:8110/horizon"
+            [database]
+            url = "postgres://x/y"
+            "#
+        ))
+        .unwrap()
+    }
+
     fn gate(min_escrow_balance: u128) -> EscrowGate {
         let config = GateConfig {
             rpc_url: "http://127.0.0.1:8545".to_owned(),
@@ -212,25 +234,14 @@ mod tests {
             cache_ttl_secs: 30,
             rpc_timeout_secs: 5,
         };
-        let core: Config = toml::from_str(
-            r#"
-            [server]
-            host = "127.0.0.1"
-            port = 8090
-            [indexer]
-            service_provider_address = "0x0000000000000000000000000000000000000001"
-            operator_private_key = "0x01"
-            [tap]
-            data_service_address = "0x0000000000000000000000000000000000000002"
-            authorized_senders = []
-            [backend]
-            upstream_url = "http://127.0.0.1:8110/horizon"
-            [database]
-            url = "postgres://x/y"
-            "#,
+        EscrowGate::new(
+            &config,
+            &core_config(
+                "0x0000000000000000000000000000000000000001",
+                horizon_core::addresses::GRAPH_TALLY_COLLECTOR,
+            ),
         )
-        .unwrap();
-        EscrowGate::new(&config, &core).unwrap()
+        .unwrap()
     }
 
     #[test]
@@ -296,5 +307,156 @@ mod tests {
             gate.remember(Address::repeat_byte(0xAA), Address::from(signer), 1);
         }
         assert!(gate.cache.lock().unwrap().len() <= 4096);
+    }
+
+    fn validated(payer: Address, signer: Address, value: u128) -> ValidatedReceipt {
+        ValidatedReceipt {
+            receipt: horizon_core::tap::Receipt {
+                data_service: Address::repeat_byte(0x02),
+                service_provider: payer,
+                timestamp_ns: 1,
+                nonce: 1,
+                value,
+                metadata: Default::default(),
+            },
+            signer,
+            payer,
+            signature: "0x00".to_owned(),
+        }
+    }
+
+    #[tokio::test]
+    async fn an_unreachable_rpc_refuses_the_request_rather_than_admitting_it() {
+        // Nothing listens on port 1. The gate must decline, not shrug and forward.
+        let config = GateConfig {
+            rpc_url: "http://127.0.0.1:1".to_owned(),
+            payments_escrow: Address::repeat_byte(0xEE),
+            min_escrow_balance: 0,
+            cache_ttl_secs: 30,
+            rpc_timeout_secs: 5,
+        };
+        let gate = EscrowGate::new(
+            &config,
+            &core_config(
+                "0x0000000000000000000000000000000000000001",
+                horizon_core::addresses::GRAPH_TALLY_COLLECTOR,
+            ),
+        )
+        .unwrap();
+
+        let rejection = gate
+            .check(
+                &validated(Address::repeat_byte(0xAA), Address::repeat_byte(0xBB), 1),
+                "/v1/nests/x/q/top_indexers",
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(rejection.status, StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    // -------------------------------------------------------------------------
+    // Live Arbitrum One
+    //
+    // Ignored by default: needs network and an RPC endpoint. Run with
+    //
+    //   NUTHATCH_TEST_RPC_URL=https://arb-mainnet.example/v2/KEY \
+    //     cargo test --locked -- --ignored --nocapture
+    //
+    // The assertions are pinned to facts the beta established on-chain, so this
+    // fails loudly if the ABI, the addresses, or the escrow keying are wrong —
+    // which is the part no offline test can reach.
+    // -------------------------------------------------------------------------
+
+    /// The beta provider, payer and RAV signer, all one address on Arbitrum One.
+    const BETA_PROVIDER: &str = "0x02526499Ae2879A94090267017C3816f733825Bb";
+    const ARBITRUM_ONE_ESCROW: &str = "0xf6Fcc27aAf1fcD8B254498c9794451d82afC673E";
+    const ARBITRUM_ONE_COLLECTOR: &str = "0x8f69F5C07477Ac46FBc491B1E6D91E2bb0111A9e";
+
+    fn live_gate(rpc_url: String, min_escrow_balance: u128) -> EscrowGate {
+        let config = GateConfig {
+            rpc_url,
+            payments_escrow: ARBITRUM_ONE_ESCROW.parse().unwrap(),
+            min_escrow_balance,
+            cache_ttl_secs: 30,
+            rpc_timeout_secs: 15,
+        };
+        EscrowGate::new(&config, &core_config(BETA_PROVIDER, ARBITRUM_ONE_COLLECTOR)).unwrap()
+    }
+
+    #[tokio::test]
+    #[ignore = "needs NUTHATCH_TEST_RPC_URL pointing at an Arbitrum One endpoint"]
+    async fn the_gate_reads_real_arbitrum_one_state() {
+        let rpc_url = std::env::var("NUTHATCH_TEST_RPC_URL")
+            .expect("set NUTHATCH_TEST_RPC_URL to an Arbitrum One RPC endpoint");
+        let gate = live_gate(rpc_url, 0);
+        let provider: Address = BETA_PROVIDER.parse().unwrap();
+        let stranger = Address::repeat_byte(0xAB);
+
+        // The beta provider authorised itself as a RAV signer; that is what made
+        // the mainnet collect() proof redeemable.
+        assert!(
+            gate.is_authorized(provider, provider).await.unwrap(),
+            "the beta provider should be an authorized signer for itself"
+        );
+
+        // An address that has authorised nobody. This is the check that binds a
+        // receipt's self-declared payer to whoever actually signed it.
+        assert!(
+            !gate.is_authorized(stranger, stranger).await.unwrap(),
+            "an unrelated address must not be an authorized signer"
+        );
+        assert!(
+            !gate.is_authorized(provider, stranger).await.unwrap(),
+            "a stranger must not pass as a signer for the beta provider"
+        );
+
+        // The proof drained the escrow: "afterwards the payment escrow balance
+        // was zero". If the escrow tuple were keyed wrongly this would not be
+        // readable at all, let alone correct.
+        assert_eq!(
+            gate.escrow_balance(provider).await.unwrap(),
+            U256::ZERO,
+            "the beta escrow was emptied by the mainnet collect() proof"
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "needs NUTHATCH_TEST_RPC_URL pointing at an Arbitrum One endpoint"]
+    async fn an_empty_escrow_is_refused_end_to_end() {
+        let rpc_url = std::env::var("NUTHATCH_TEST_RPC_URL")
+            .expect("set NUTHATCH_TEST_RPC_URL to an Arbitrum One RPC endpoint");
+        let gate = live_gate(rpc_url.clone(), 0);
+        let provider: Address = BETA_PROVIDER.parse().unwrap();
+
+        // An authorised signer with a drained escrow: past the authorisation
+        // check, refused on balance. One compute unit at the published rate.
+        let rejection = gate
+            .check(
+                &validated(provider, provider, 4_000_000_000_000),
+                "/v1/nests/x/q/top_indexers",
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(rejection.status, StatusCode::PAYMENT_REQUIRED);
+        assert!(
+            rejection.message.contains("escrow balance 0"),
+            "expected an escrow rejection, got: {}",
+            rejection.message
+        );
+
+        // An unauthorised signer is refused earlier, and for a different reason.
+        let rejection = live_gate(rpc_url, 0)
+            .check(
+                &validated(provider, Address::repeat_byte(0xAB), 1),
+                "/v1/nests/x/q/top_indexers",
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(rejection.status, StatusCode::PAYMENT_REQUIRED);
+        assert!(
+            rejection.message.contains("not an authorized signer"),
+            "expected a signer rejection, got: {}",
+            rejection.message
+        );
     }
 }
