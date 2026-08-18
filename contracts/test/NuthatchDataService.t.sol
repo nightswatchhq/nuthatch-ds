@@ -7,6 +7,9 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {MockGRTToken} from "@graphprotocol/horizon/mocks/MockGRTToken.sol";
 import {ControllerMock} from "@graphprotocol/horizon/mocks/ControllerMock.sol";
 import {IHorizonStakingTypes} from "@graphprotocol/interfaces/contracts/horizon/internal/IHorizonStakingTypes.sol";
+import {IGraphPayments} from "@graphprotocol/interfaces/contracts/horizon/IGraphPayments.sol";
+import {IGraphTallyCollector} from "@graphprotocol/interfaces/contracts/horizon/IGraphTallyCollector.sol";
+import {ProvisionTracker} from "@graphprotocol/horizon/data-service/libraries/ProvisionTracker.sol";
 
 import {NuthatchDataService} from "../src/NuthatchDataService.sol";
 import {INuthatchDataService} from "../src/interfaces/INuthatchDataService.sol";
@@ -51,16 +54,39 @@ contract MockStaking {
     function acceptProvisionParameters(address) external {}
 }
 
+/// @dev Stands in for GraphTallyCollector + GraphPayments + PaymentsEscrow.
+///      Mints the caller its PPM cut of the collected amount, exactly as the real
+///      escrow route does, and returns the gross figure the real collector returns.
+contract MockTallyCollector {
+    MockGRTToken public immutable GRT;
+
+    constructor(MockGRTToken grt) {
+        GRT = grt;
+    }
+
+    function collect(IGraphPayments.PaymentTypes, bytes calldata data, uint256 tokensToCollect)
+        external
+        returns (uint256)
+    {
+        (, uint256 dataServiceCut,) = abi.decode(data, (IGraphTallyCollector.SignedRAV, uint256, address));
+        GRT.mint(msg.sender, tokensToCollect * dataServiceCut / 1_000_000);
+        return tokensToCollect;
+    }
+}
+
 contract NuthatchDataServiceTest is Test {
     NuthatchDataService internal service;
     MockStaking internal staking;
     ControllerMock internal controller;
+    MockGRTToken internal grt;
+    MockTallyCollector internal tally;
 
     address internal owner = address(this);
     address internal provider = address(0xBEEF);
 
     function setUp() public {
-        MockGRTToken grt = new MockGRTToken();
+        grt = new MockGRTToken();
+        tally = new MockTallyCollector(grt);
         controller = new ControllerMock(address(this));
         staking = new MockStaking();
 
@@ -74,8 +100,7 @@ contract NuthatchDataServiceTest is Test {
         controller.setContractProxy(keccak256("GraphPayments"), address(1));
         controller.setContractProxy(keccak256("PaymentsEscrow"), address(1));
 
-        // GraphTallyCollector immutable is only used by collect(); a stub is fine here.
-        NuthatchDataService impl = new NuthatchDataService(address(controller), address(1));
+        NuthatchDataService impl = new NuthatchDataService(address(controller), address(tally));
         bytes memory initData = abi.encodeCall(NuthatchDataService.initialize, (owner, owner));
         service = NuthatchDataService(address(new ERC1967Proxy(address(impl), initData)));
 
@@ -105,7 +130,7 @@ contract NuthatchDataServiceTest is Test {
         vm.stopPrank();
 
         service.setMinimumProvisionTokens(555e18);
-        NuthatchDataService implementationV2 = new NuthatchDataService(address(controller), address(1));
+        NuthatchDataService implementationV2 = new NuthatchDataService(address(controller), address(tally));
         service.upgradeToAndCall(
             address(implementationV2), abi.encodeCall(NuthatchDataService.setMinimumProvisionTokens, (0))
         );
@@ -263,5 +288,213 @@ contract NuthatchDataServiceTest is Test {
             abi.encodeWithSelector(INuthatchDataService.ThawingPeriodTooShort.selector, uint64(14 days), uint64(1 days))
         );
         service.setMinThawingPeriod(1 days);
+    }
+
+    // -------------------------------------------------------------------------
+    // Governance
+    // -------------------------------------------------------------------------
+
+    function test_setMinThawingPeriod_movesProvisionAcceptanceRangeToo() public {
+        service.setMinThawingPeriod(30 days);
+        assertEq(service.minThawingPeriod(), 30 days);
+
+        // The two stores must not drift: a provision thawing for the old floor is
+        // no longer acceptable once governance has raised the requirement.
+        (uint64 minimum,) = service.getThawingPeriodRange();
+        assertEq(minimum, 30 days);
+
+        address thinThaw = address(0xD00D);
+        staking.setProvision(thinThaw, address(service), 1e18, 14 days);
+        vm.prank(thinThaw);
+        vm.expectRevert();
+        service.register(thinThaw, abi.encode("https://p", "geo", address(0)));
+    }
+
+    function test_withdrawFees() public {
+        grt.mint(address(service), 100e18);
+        service.withdrawFees(address(0xFEE5), 40e18);
+        assertEq(grt.balanceOf(address(0xFEE5)), 40e18);
+        assertEq(grt.balanceOf(address(service)), 60e18);
+    }
+
+    function test_withdrawFees_rejectsZeroAddress() public {
+        grt.mint(address(service), 1e18);
+        vm.expectRevert(bytes("zero address"));
+        service.withdrawFees(address(0), 1e18);
+    }
+
+    function test_withdrawFees_onlyOwner() public {
+        grt.mint(address(service), 1e18);
+        vm.prank(provider);
+        vm.expectRevert();
+        service.withdrawFees(provider, 1e18);
+    }
+
+    // -------------------------------------------------------------------------
+    // Offering bounds
+    // -------------------------------------------------------------------------
+
+    function test_startService_enforcesOfferingCap() public {
+        vm.startPrank(provider);
+        service.register(provider, abi.encode("https://p", "geo", address(0)));
+        uint256 cap = service.MAX_OFFERINGS_PER_PROVIDER();
+        for (uint256 i = 0; i < cap; i++) {
+            service.startService(
+                provider, abi.encode(keccak256(abi.encode(i)), INuthatchDataService.QueryMode.NAMED, "https://p")
+            );
+        }
+        vm.expectRevert(abi.encodeWithSelector(INuthatchDataService.TooManyOfferings.selector, provider, cap));
+        service.startService(
+            provider, abi.encode(keccak256("one too many"), INuthatchDataService.QueryMode.NAMED, "https://p")
+        );
+        vm.stopPrank();
+    }
+
+    // -------------------------------------------------------------------------
+    // collect()
+    // -------------------------------------------------------------------------
+
+    function _signedRav(address serviceProvider_, uint128 value)
+        internal
+        view
+        returns (IGraphTallyCollector.SignedRAV memory)
+    {
+        return IGraphTallyCollector.SignedRAV({
+            rav: IGraphTallyCollector.ReceiptAggregateVoucher({
+                collectionId: keccak256("collection"),
+                payer: address(0xBADD1E),
+                serviceProvider: serviceProvider_,
+                dataService: address(service),
+                timestampNs: uint64(block.timestamp) * 1e9,
+                valueAggregate: value,
+                metadata: ""
+            }),
+            signature: hex"00"
+        });
+    }
+
+    function _registerProvider() internal {
+        vm.prank(provider);
+        service.register(provider, abi.encode("https://p", "geo", address(0)));
+    }
+
+    function test_collect_burnsHalfTheCutAndRetainsTheRest() public {
+        _registerProvider();
+        uint256 supplyBefore = grt.totalSupply();
+
+        // 2% total cut on 1000 GRT = 20 GRT to the service; half of that is burned.
+        uint256 fees = service.collect(
+            provider, IGraphPayments.PaymentTypes.QueryFee, abi.encode(_signedRav(provider, 1000e18), uint256(1000e18))
+        );
+
+        assertEq(fees, 1000e18, "collect returns the gross collected amount");
+        assertEq(grt.balanceOf(address(service)), 10e18, "1% retained as data service revenue");
+        assertEq(grt.totalSupply(), supplyBefore + 10e18, "1% burned, 1% retained");
+    }
+
+    function test_collect_emitsFeesBurned() public {
+        _registerProvider();
+        vm.expectEmit(true, false, false, true, address(service));
+        emit INuthatchDataService.FeesBurned(provider, 10e18);
+        service.collect(
+            provider, IGraphPayments.PaymentTypes.QueryFee, abi.encode(_signedRav(provider, 1000e18), uint256(1000e18))
+        );
+    }
+
+    function test_collect_locksStakeAtTheDeclaredRatio() public {
+        _registerProvider();
+        service.collect(
+            provider, IGraphPayments.PaymentTypes.QueryFee, abi.encode(_signedRav(provider, 1000e18), uint256(1000e18))
+        );
+        assertEq(service.feesProvisionTracker(provider), 1000e18 * 5);
+    }
+
+    function test_collect_releasesExpiredClaimsBeforeLockingNewOnes() public {
+        _registerProvider();
+        service.collect(
+            provider, IGraphPayments.PaymentTypes.QueryFee, abi.encode(_signedRav(provider, 1000e18), uint256(1000e18))
+        );
+        assertEq(service.feesProvisionTracker(provider), 5000e18);
+
+        vm.warp(block.timestamp + 14 days + 1);
+        service.collect(
+            provider, IGraphPayments.PaymentTypes.QueryFee, abi.encode(_signedRav(provider, 2000e18), uint256(1000e18))
+        );
+        // The first claim expired and was released; only the second is still locked.
+        assertEq(service.feesProvisionTracker(provider), 5000e18);
+    }
+
+    function test_collect_revertsWhenProvisionCannotBackTheFees() public {
+        // 0.0001 GRT of provision backs 0.00002 GRT of fees at a 5:1 ratio.
+        staking.setProvision(provider, address(service), 1e14, 14 days);
+        _registerProvider();
+        assertEq(service.maxCollectableFees(provider), 2e13);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(ProvisionTracker.ProvisionTrackerInsufficientTokens.selector, 1e14, 5e14)
+        );
+        service.collect(
+            provider, IGraphPayments.PaymentTypes.QueryFee, abi.encode(_signedRav(provider, 1e14), uint256(1e14))
+        );
+    }
+
+    function test_maxCollectableFees_shrinksAsStakeIsLocked() public {
+        _registerProvider();
+        assertEq(service.maxCollectableFees(provider), 1_000_000e18 / 5);
+        service.collect(
+            provider, IGraphPayments.PaymentTypes.QueryFee, abi.encode(_signedRav(provider, 1000e18), uint256(1000e18))
+        );
+        assertEq(service.maxCollectableFees(provider), (1_000_000e18 - 5000e18) / 5);
+    }
+
+    function test_collect_rejectsNonQueryFeePaymentTypes() public {
+        _registerProvider();
+        vm.expectRevert(INuthatchDataService.InvalidPaymentType.selector);
+        service.collect(
+            provider,
+            IGraphPayments.PaymentTypes.IndexingFee,
+            abi.encode(_signedRav(provider, 1000e18), uint256(1000e18))
+        );
+    }
+
+    function test_collect_rejectsUnregisteredProvider() public {
+        vm.expectRevert(abi.encodeWithSelector(INuthatchDataService.ProviderNotRegistered.selector, provider));
+        service.collect(
+            provider, IGraphPayments.PaymentTypes.QueryFee, abi.encode(_signedRav(provider, 1000e18), uint256(1000e18))
+        );
+    }
+
+    function test_collect_rejectsRavForAnotherServiceProvider() public {
+        _registerProvider();
+        address other = address(0xB0B);
+        vm.expectRevert(abi.encodeWithSelector(INuthatchDataService.InvalidServiceProvider.selector, provider, other));
+        service.collect(
+            provider, IGraphPayments.PaymentTypes.QueryFee, abi.encode(_signedRav(other, 1000e18), uint256(1000e18))
+        );
+    }
+
+    function test_collect_rejectedWhilePaused() public {
+        _registerProvider();
+        service.pause();
+        vm.expectRevert();
+        service.collect(
+            provider, IGraphPayments.PaymentTypes.QueryFee, abi.encode(_signedRav(provider, 1000e18), uint256(1000e18))
+        );
+    }
+
+    function test_providerCanStillExitWhilePaused() public {
+        vm.startPrank(provider);
+        service.register(provider, abi.encode("https://p", "geo", address(0)));
+        bytes32 nid = keccak256("horizon-nest");
+        service.startService(provider, abi.encode(nid, INuthatchDataService.QueryMode.NAMED, "https://p"));
+        vm.stopPrank();
+
+        service.pause();
+
+        vm.startPrank(provider);
+        service.stopService(provider, abi.encode(nid, INuthatchDataService.QueryMode.NAMED));
+        service.deregister(provider, "");
+        vm.stopPrank();
+        assertFalse(service.isRegistered(provider));
     }
 }

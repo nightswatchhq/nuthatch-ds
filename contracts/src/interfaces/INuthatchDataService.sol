@@ -53,6 +53,7 @@ interface INuthatchDataService {
     error InvalidServiceProvider(address expected, address actual);
     error InvalidPaymentType();
     error ThawingPeriodTooShort(uint64 required, uint64 actual);
+    error TooManyOfferings(address provider, uint256 maximum);
 
     // -------------------------------------------------------------------------
     // Provider operations
@@ -86,6 +87,13 @@ interface INuthatchDataService {
     function offeringKey(bytes32 nid, QueryMode mode) external pure returns (bytes32);
 
     function activeServiceCount(address provider) external view returns (uint256);
+
+    /// @notice Fees `collect()` can currently back with locked stake, in GRT wei.
+    /// @dev Every collect() locks `fees * STAKE_TO_FEES_RATIO` of the provider's provision
+    ///      for `minThawingPeriod`. Once that exceeds the available provision, collect()
+    ///      reverts with ProvisionTrackerInsufficientTokens. Monitor this; a thin provision
+    ///      runs out of headroom long before anything else complains.
+    function maxCollectableFees(address provider) external view returns (uint256);
 
     function paymentsDestination(address provider) external view returns (address);
 

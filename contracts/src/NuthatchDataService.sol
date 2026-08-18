@@ -53,6 +53,12 @@ contract NuthatchDataService is
     /// @notice Stake locked per GRT of fees collected. Matches SubgraphService.
     uint256 public constant STAKE_TO_FEES_RATIO = 5;
 
+    /// @notice Maximum distinct (NID, mode) offerings one provider may hold.
+    /// @dev The offering array is scanned linearly by startService, stopService and
+    ///      activeServiceCount. Unbounded growth would eventually make deregister()
+    ///      unexecutable, which is a self-inflicted wound but a permanent one.
+    uint256 public constant MAX_OFFERINGS_PER_PROVIDER = 32;
+
     // -------------------------------------------------------------------------
     // Storage
     // -------------------------------------------------------------------------
@@ -113,9 +119,15 @@ contract NuthatchDataService is
     // -------------------------------------------------------------------------
 
     /// @inheritdoc INuthatchDataService
+    /// @dev There are two thawing periods in play and they must not drift. `minThawingPeriod`
+    ///      dates stake claims created by collect(); ProvisionManager's own thawing range is
+    ///      what register() and acceptProvisionPendingParameters() validate provisions against.
+    ///      Updating only the former would make this setter a no-op for everything a caller
+    ///      reasonably expects it to govern.
     function setMinThawingPeriod(uint64 period) external onlyOwner {
         if (period < MIN_THAWING_PERIOD) revert ThawingPeriodTooShort(MIN_THAWING_PERIOD, period);
         minThawingPeriod = period;
+        _setThawingPeriodRange(period, type(uint64).max);
         emit MinThawingPeriodSet(period);
     }
 
@@ -130,7 +142,7 @@ contract NuthatchDataService is
     /// @inheritdoc INuthatchDataService
     function withdrawFees(address to, uint256 amount) external onlyOwner {
         require(to != address(0), "zero address");
-        _graphToken().transfer(to, amount);
+        require(_graphToken().transfer(to, amount), "transfer failed");
         emit FeesWithdrawn(to, amount);
     }
 
@@ -206,6 +218,9 @@ contract NuthatchDataService is
             }
         }
 
+        if (offerings.length >= MAX_OFFERINGS_PER_PROVIDER) {
+            revert TooManyOfferings(serviceProvider, MAX_OFFERINGS_PER_PROVIDER);
+        }
         offerings.push(NestOffering({nid: nid, mode: mode, endpoint: endpoint, active: true}));
         emit OfferingStarted(serviceProvider, nid, mode, endpoint);
     }
@@ -301,6 +316,14 @@ contract NuthatchDataService is
     /// @inheritdoc INuthatchDataService
     function offeringKey(bytes32 nid, QueryMode mode) external pure returns (bytes32) {
         return keccak256(abi.encode(nid, mode));
+    }
+
+    /// @inheritdoc INuthatchDataService
+    function maxCollectableFees(address provider) external view returns (uint256) {
+        uint256 available = _graphStaking().getTokensAvailable(provider, address(this), _delegationRatio);
+        uint256 locked = feesProvisionTracker[provider];
+        if (available <= locked) return 0;
+        return (available - locked) / STAKE_TO_FEES_RATIO;
     }
 
     /// @inheritdoc INuthatchDataService
