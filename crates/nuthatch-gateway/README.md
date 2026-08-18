@@ -162,4 +162,18 @@ Nuthatch one.
 
 The router tests build a real `AppState` over a lazy Postgres pool that is never
 connected; every assertion is decided before the pool or the upstream is touched.
+
+Two further tests exercise the payment gate against live Arbitrum One state and
+are `#[ignore]`d, since they need network:
+
+```bash
+NUTHATCH_TEST_RPC_URL=https://arb-mainnet.example/v2/KEY \
+  cargo test --locked -- --ignored --nocapture
+```
+
+They assert against facts the beta established on-chain — the provider is an
+authorised signer for itself, a stranger is not, and the escrow the mainnet
+`collect()` proof drained still reads zero — so they fail loudly if the ABI, the
+contract addresses, or the escrow tuple keying are wrong. That is the part no
+offline test can reach.
 The repository CI also validates Compose and runs the Solidity contract suite.

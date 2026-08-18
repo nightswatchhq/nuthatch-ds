@@ -64,7 +64,7 @@ reach.
 
 ## Checks
 
-Thirty Rust gateway tests and thirty-three Solidity tests pass, including
+Thirty-one Rust gateway tests and thirty-three Solidity tests pass, including
 UUPS storage preservation during the provision-floor migration and the router
 composition described above. Formatting, clippy, builds, and Compose validation
 pass too. On the VPS we checked public TLS discovery, missing-receipt rejection

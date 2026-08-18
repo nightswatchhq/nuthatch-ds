@@ -209,14 +209,20 @@ cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked
 cd contracts && forge fmt --check && forge test -vvv
 NUTHATCH_NID=<nid> NUTHATCH_QUERY_MODE=NAMED POSTGRES_PASSWORD=test docker compose config -q
+
+# Payment gate against live Arbitrum One (needs network, ignored by default).
+NUTHATCH_TEST_RPC_URL=<arbitrum-one-rpc> cargo test --locked -- --ignored
 ```
 
-The 30 gateway tests cover the composed router (unlisted paths refused rather than
+The 31 gateway tests cover the composed router (unlisted paths refused rather than
 proxied, paid routes gated, SQL absent in NAMED mode, foreign NIDs refused, rate
 limiting across routes and fallback, `/health` never throttled), route-shape pricing,
 malformed NIDs, safe upstream identifiers, the payment-gate cache and requirement
 arithmetic, the refusal to start with neither an allowlist nor a gate, and that every shipped
-gateway template parses as both a horizon-core config and a Nuthatch one.
+gateway template parses as both a horizon-core config and a Nuthatch one. Two
+further tests, ignored unless `NUTHATCH_TEST_RPC_URL` is set, run the gate's two
+`eth_call`s against live Arbitrum One and check them against what the beta left
+on-chain.
 
 The 33 contract tests cover registration with zero provision, offering activation, the
 offering cap, restart/update behaviour, both query modes for one NID, invalid NIDs,
