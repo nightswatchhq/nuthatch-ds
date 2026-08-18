@@ -72,11 +72,15 @@ pass too. On the VPS we checked public TLS discovery, missing-receipt rejection
 limiting (429). The isolated service uses Nuthatch 2.5.0, which reproduces the
 advertised NID.
 
-The gateway is narrow: Nuthatch, Postgres, and the gateway listener are
+On the deployed host, Nuthatch, Postgres, and the gateway listener are
 loopback-only; Caddy is the sole public entrypoint and caps request bodies at
-16 KiB; NID routes and the 404 fallback alike are limited to 10 requests a second
-with a burst of 20. The idle gateway was measured at 3.6 MiB RSS with a 512 MiB
-systemd cap.
+16 KiB; NID routes are limited to 10 requests a second with a burst of 20. The idle
+gateway was measured at 3.6 MiB RSS with a 512 MiB systemd cap.
+
+The narrow router, the payment gate, the 404 fallback and the clamped query limits
+described above are in the repository and have not been deployed to that host, and
+the proxy still runs the implementation that predates the contract changes. See the
+Status section of the README.
 
 ## Beta boundary
 
