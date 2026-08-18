@@ -10,10 +10,23 @@ name = "nuthatch-gateway"
 path = "src/main.rs"
 
 [dependencies]
-horizon-core = { git = "https://github.com/nightswatchhq/horizon-core", branch = "main" }
+# Pinned to a commit, not a branch. This crate validates payments; it does not
+# get to change underneath a `docker build` because someone pushed to main.
+horizon-core = { git = "https://github.com/nightswatchhq/horizon-core", rev = "d8b0233cd7e25c01014b5eac4c46c08491b6b260" }
 axum = { version = "0.8" }
+tower_governor = { version = "0.8", features = ["axum"] }
+alloy = { version = "0.5", features = ["full"] }
+alloy-primitives = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 dotenvy = "0.15"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "tls-rustls"] }
