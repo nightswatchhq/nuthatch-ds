@@ -1,46 +1,76 @@
-# Task runner config (yatr). Adjust as needed.
+# yatr - https://github.com/cargopete/yatr
+#
+# These tasks are what .github/workflows CI runs, command for command, so
+# `yatr ci` locally is the same gate. The workflow calls these tasks by name:
+# change a command here and CI changes with it.
+#
+# The aggregate is `ci`, not `check`: `yatr check` is a builtin that validates
+# this file and shadows any task of that name without warning.
+
+[settings]
+cache = true
 
 [tasks.fmt]
-desc = "Format Rust code"
-run = ["cargo fmt"]
+desc = "Format Rust and Solidity"
+run = ["cargo fmt", "forge fmt"]
+no_cache = true
 
 [tasks.fmt-check]
-desc = "Check Rust formatting"
+desc = "Fail if the Rust tree is unformatted (CI: gateway)"
+run = ["cargo fmt --check"]
 sources = ["**/*.rs"]
-run = ["cargo fmt --all --check"]
-
-[tasks.clippy]
-desc = "Lint Rust"
-sources = ["**/*.rs", "**/Cargo.toml"]
-run = ["cargo clippy --all-targets -- -D warnings"]
 
 [tasks.test]
-desc = "Run Rust tests"
-run = ["cargo test"]
+desc = "Run the gateway test suite (CI: gateway)"
+run = ["cargo test --locked"]
+sources = ["**/*.rs", "**/Cargo.toml", "Cargo.lock"]
+
+[tasks.lint]
+desc = "Clippy with warnings denied"
+run = ["cargo clippy --all-targets -- -D warnings"]
+sources = ["**/*.rs", "**/Cargo.toml"]
 
 [tasks.build]
 desc = "Release build"
-sources = ["**/*.rs", "**/Cargo.toml"]
 run = ["cargo build --release"]
+sources = ["**/*.rs", "**/Cargo.toml", "Cargo.lock"]
+
+[tasks.sol-fmt-check]
+desc = "Fail if the Solidity is unformatted (CI: contracts)"
+run = ["forge fmt --check"]
+cwd = "contracts"
+sources = ["**/*.sol"]
 
 [tasks.contracts]
-desc = "Build + test the Solidity contracts"
-run = ["forge build", "forge test"]
+desc = "Build and test the contracts (CI: contracts)"
+run = ["forge build", "forge test -vvv"]
+cwd = "contracts"
+sources = ["**/*.sol"]
 
-[tasks.ci]
-desc = "CI pipeline"
-depends = ["fmt-check", "clippy", "test", "contracts"]
+[tasks.compose]
+desc = "Fail if docker-compose.yml does not resolve (CI: compose)"
+run = ["docker compose config -q"]
+env = { NUTHATCH_NID = "36d3c71446a56cdb5b90536d3f5f77351b1d92efcca94bc2fd41b1c368e69410", NUTHATCH_QUERY_MODE = "NAMED", POSTGRES_PASSWORD = "ci-only-password" }
+no_cache = true
 
 [tasks.up]
 desc = "Start services (Postgres + gateway)"
-foreground = true
 run = ["docker compose up"]
+foreground = true
+no_cache = true
 
 [tasks.down]
 desc = "Stop services"
 run = ["docker compose down"]
+no_cache = true
 
 [tasks.logs]
 desc = "Tail logs"
-foreground = true
 run = ["docker compose logs -f"]
+foreground = true
+no_cache = true
+
+[tasks.ci]
+desc = "What CI runs: fmt-check, test, sol-fmt-check, contracts, compose"
+depends = ["fmt-check", "test", "sol-fmt-check", "contracts", "compose"]
+run = []

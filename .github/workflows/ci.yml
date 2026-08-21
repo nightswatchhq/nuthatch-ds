@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+env:
+  # The commands CI runs live in yatr.toml, so `yatr ci` locally is the
+  # same gate. Bump deliberately.
+  YATR_VERSION: "1.1.0"
+
 jobs:
   gateway:
     name: Gateway
@@ -15,8 +20,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo fmt --check
-      - run: cargo test --locked
+      - name: Cache yatr
+        id: cache-yatr
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/yatr
+          key: yatr-${{ runner.os }}-${{ env.YATR_VERSION }}
+
+      - name: Install yatr
+        if: steps.cache-yatr.outputs.cache-hit != 'true'
+        # RUSTFLAGS is cleared deliberately: yatr is a different crate and must
+        # not inherit this project's flags (a `-D warnings` or a custom linker
+        # would fail or mislink the install).
+        run: cargo install yatr --version ${{ env.YATR_VERSION }} --locked
+        env:
+          RUSTFLAGS: ""
+
+      - run: yatr fmt-check
+      - run: yatr test
 
   contracts:
     name: Contracts
@@ -26,19 +47,47 @@ jobs:
         with:
           submodules: recursive
       - uses: foundry-rs/foundry-toolchain@v1
-      - run: forge fmt --check
-        working-directory: contracts
-      - run: forge build
-        working-directory: contracts
-      - run: forge test -vvv
-        working-directory: contracts
+      - name: Cache yatr
+        id: cache-yatr
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/yatr
+          key: yatr-${{ runner.os }}-${{ env.YATR_VERSION }}
+
+      - name: Install yatr
+        if: steps.cache-yatr.outputs.cache-hit != 'true'
+        # RUSTFLAGS is cleared deliberately: yatr is a different crate and must
+        # not inherit this project's flags (a `-D warnings` or a custom linker
+        # would fail or mislink the install).
+        run: cargo install yatr --version ${{ env.YATR_VERSION }} --locked
+        env:
+          RUSTFLAGS: ""
+
+      - run: yatr sol-fmt-check
+      - run: yatr contracts
 
   compose:
     name: Compose configuration
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker compose config -q
+      - name: Cache yatr
+        id: cache-yatr
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/yatr
+          key: yatr-${{ runner.os }}-${{ env.YATR_VERSION }}
+
+      - name: Install yatr
+        if: steps.cache-yatr.outputs.cache-hit != 'true'
+        # RUSTFLAGS is cleared deliberately: yatr is a different crate and must
+        # not inherit this project's flags (a `-D warnings` or a custom linker
+        # would fail or mislink the install).
+        run: cargo install yatr --version ${{ env.YATR_VERSION }} --locked
+        env:
+          RUSTFLAGS: ""
+
+      - run: yatr compose
         env:
           NUTHATCH_NID: 36d3c71446a56cdb5b90536d3f5f77351b1d92efcca94bc2fd41b1c368e69410
           NUTHATCH_QUERY_MODE: NAMED
